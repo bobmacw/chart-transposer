@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chord Sheet Transposer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1d1b18; --muted: #6b665d;
+    --line: #e2ddd2; --accent: #8a5a2b; --accent-soft: #f3e8dc; --chord: #a0522d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16140f; --card:#211e18; --ink:#efe9de; --muted:#a39b8c;
+      --line:#38332a; --accent:#d9a066; --accent-soft:#3a2d1f; --chord:#e7a86b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family: Inter, -apple-system, system-ui, sans-serif; line-height:1.4; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 4px 0 2px; letter-spacing:-0.01em; }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: .95rem; }
+  .card { background: var(--card); border:1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  label { display:block; font-size:.78rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+  select, button { font: inherit; font-size: 1rem; border-radius: 10px; border:1px solid var(--line);
+    background: var(--bg); color: var(--ink); padding: 9px 12px; }
+  select { min-width: 110px; }
+  button { cursor:pointer; font-weight:600; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:active { transform: translateY(1px); }
+  .arrow { font-size: 1.3rem; padding-bottom: 8px; color: var(--muted); }
+  .shift { font-size: .9rem; color: var(--muted); margin-top: 10px; }
+  .shift b { color: var(--ink); }
+  textarea { width:100%; min-height: 240px; resize: vertical; border:1px solid var(--line); border-radius:10px;
+    padding: 12px; background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; white-space: pre; overflow-x:auto; }
+  pre { margin:0; padding: 12px; min-height: 120px; border-radius:10px; background: var(--bg); border:1px solid var(--line);
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; overflow-x:auto; white-space: pre; }
+  pre .c { color: var(--chord); font-weight: 600; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .row h2 { font-size: 1rem; margin:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background: var(--accent-soft); border-radius: 999px; padding: 4px 10px; font-family:"IBM Plex Mono", monospace; font-size: .85rem; }
+  .chip span { color: var(--muted); }
+  .note { font-size:.82rem; color: var(--muted); margin-top: 8px; }
+  .toast { font-size:.85rem; color: var(--accent); min-height: 1.2em; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; padding:9px 11px; background: var(--bg); font-weight:600; }
+  .seg button.on { background: var(--accent); color:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chord Sheet Transposer</h1>
+  <p class="sub">Paste a lyric &amp; chord sheet, choose the keys, and copy the result. Lyrics and spacing are left untouched.</p>
+
+  <div class="card">
+    <div class="controls">
+      <div>
+        <label for="from">From key</label>
+        <select id="from"></select>
+      </div>
+      <div class="arrow">→</div>
+      <div>
+        <label for="to">To key</label>
+        <select id="to"></select>
+      </div>
+      <div>
+        <label>Fine tune</label>
+        <div class="seg">
+          <button id="down" title="Down a semitone">−½</button>
+          <button id="up" title="Up a semitone">+½</button>
+        </div>
+      </div>
+      <div>
+        <label>Spelling</label>
+        <div class="seg" id="spell">
+          <button data-v="auto" class="on">Auto</button>
+          <button data-v="sharp">♯</button>
+          <button data-v="flat">♭</button>
+        </div>
+      </div>
+    </div>
+    <div class="shift" id="shift"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <h2>Original sheet</h2>
+      <button id="clear">Clear</button>
+    </div>
+    <textarea id="input" spellcheck="false" placeholder="Paste your sheet here, e.g.
+
+[Verse]
+C        Am       F         G
+Words of the song go on this line
+F    G      C/E   Dm7  G7
+More words here on the next line
+
+ChordPro style works too: [C]Words [Am]here"></textarea>
+    <p class="note">Recognizes chords on their own lines above the lyrics and inline [bracketed] chords. Extensions and slash chords (Cmaj7, Gsus4, C/E, Dm7b5) carry over.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <h2>Transposed</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="toast" id="toast"></span>
+        <button class="primary" id="copy">Copy</button>
+      </div>
+    </div>
+    <pre id="output"></pre>
+    <div style="margin-top:12px">
+      <label>Chord changes</label>
+      <div class="chips" id="map"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SHARP = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const FLAT  = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+  // Major keys with relative minors; flag whether they spell with flats
+  const KEYS = [
+    {n:"C",  pc:0,  rel:"Am",  flat:false},
+    {n:"Db", pc:1,  rel:"Bbm", flat:true},
+    {n:"D",  pc:2,  rel:"Bm",  flat:false},
+    {n:"Eb", pc:3,  rel:"Cm",  flat:true},
+    {n:"E",  pc:4,  rel:"C#m", flat:false},
+    {n:"F",  pc:5,  rel:"Dm",  flat:true},
+    {n:"F#", pc:6,  rel:"D#m", flat:false},
+    {n:"G",  pc:7,  rel:"Em",  flat:false},
+    {n:"Ab", pc:8,  rel:"Fm",  flat:true},
+    {n:"A",  pc:9,  rel:"F#m", flat:false},
+    {n:"Bb", pc:10, rel:"Gm",  flat:true},
+    {n:"B",  pc:11, rel:"G#m", flat:false}
+  ];
+  const NAT = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+
+  const $ = id => document.getElementById(id);
+  const fromSel = $("from"), toSel = $("to"), input = $("input"), output = $("output");
+  let spell = "auto";
+
+  KEYS.forEach((k, i) => {
+    const label = k.n + " major / " + k.rel;
+    fromSel.add(new Option(label, i));
+    toSel.add(new Option(label, i));
+  });
+
+  // Defaults: C -> G, remember last choice if possible
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("transposer-prefs") || "null"); } catch (e) {}
+  fromSel.value = saved && saved.from != null ? saved.from : 0;
+  toSel.value   = saved && saved.to   != null ? saved.to   : 7;
+  if (saved && saved.spell) spell = saved.spell;
+  try { const d = localStorage.getItem("transposer-draft"); if (d) input.value = d; } catch (e) {}
+
+  const QUAL = "(?:maj|Maj|min|mi|m|M|dim|aug|sus|add|no|omit|alt|°|ø|o|\\+|-|Δ|\\^|\\d|#|b|♯|♭|\\(|\\)|,)*";
+  const CHORD_RE = new RegExp("^([A-G])([#b♯♭]?)(" + QUAL + ")(?:/([A-G])([#b♯♭]?))?$");
+  const IGNORE_RE = /^(\||\|\||:\|\||\|\|:|\/|%|-|–|—|x\d+|\(x\d+\)|\d+x|N\.?C\.?|\(|\)|\.+|\*)$/i;
+
+  function pcOf(letter, acc) {
+    let p = NAT[letter];
+    if (acc === "#" || acc === "♯") p += 1;
+    if (acc === "b" || acc === "♭") p -= 1;
+    return (p + 12) % 12;
+  }
+  function useFlats() {
+    if (spell === "sharp") return false;
+    if (spell === "flat") return true;
+    return KEYS[+toSel.value].flat;
+  }
+  function semis() {
+    return (KEYS[+toSel.value].pc - KEYS[+fromSel.value].pc + 12) % 12;
+  }
+  // Proper spelling of the target key's scale (e.g. G major: G A B C D E F#)
+  function scaleNames(key) {
+    const L = "CDEFGAB", steps = [0,2,4,5,7,9,11], map = {};
+    const start = L.indexOf(key.n[0]);
+    for (let i = 0; i < 7; i++) {
+      const letter = L[(start + i) % 7];
+      const pc = (key.pc + steps[i]) % 12;
+      const diff = (pc - NAT[letter] + 12) % 12;
+      const acc = diff === 0 ? "" : diff === 1 ? "#" : diff === 11 ? "b" : null;
+      if (acc === null) continue;
+      const nm = letter + acc;
+      if (["E#","B#","Cb","Fb"].includes(nm)) continue;
+      map[pc] = nm;
+    }
+    return map;
+  }
+
+  // srcAcc: the accidental the original note used ("", "#", "b")
+  function name(pc, srcAcc) {
+    pc = (pc + 12) % 12;
+    if (spell === "sharp") return SHARP[pc];
+    if (spell === "flat") return FLAT[pc];
+    const diatonic = scaleNames(KEYS[+toSel.value]);
+    if (diatonic[pc]) return diatonic[pc];          // note belongs to the new key
+    if (SHARP[pc].length === 1) return SHARP[pc];   // natural note
+    // Borrowed / chromatic note: keep the original's direction (Ab stays flat, F# stays sharp)
+    if (srcAcc === "b" || srcAcc === "♭") return FLAT[pc];
+    if (srcAcc === "#" || srcAcc === "♯") return SHARP[pc];
+    return useFlats() ? FLAT[pc] : SHARP[pc];
+  }
+
+  function transposeChord(tok) {
+    const m = tok.match(CHORD_RE);
+    if (!m) return null;
+    const s = semis();
+    let out = name(pcOf(m[1], m[2]) + s, m[2]) + m[3];
+    if (m[4]) out += "/" + name(pcOf(m[4], m[5]) + s, m[5]);
+    return out;
+  }
+
+  // Strip surrounding punctuation so "(Am)" or "G," still count
+  function splitTok(t) {
+    const m = t.match(/^([\(\[\{]*)(.*?)([\)\]\},.;:]*)$/);
+    return m ? [m[1], m[2], m[3]] : ["", t, ""];
+  }
+
+  function isChordLine(line) {
+    const toks = line.trim().split(/\s+/).filter(Boolean);
+    if (!toks.length) return false;
+    let chords = 0;
+    for (const t of toks) {
+      if (IGNORE_RE.test(t)) continue;
+      const [, core] = splitTok(t);
+      if (core && CHORD_RE.test(core)) { chords++; continue; }
+      if (IGNORE_RE.test(core)) continue;
+      return false;
+    }
+    return chords > 0;
+  }
+
+  const found = new Map();
+  function esc(s) { return s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+  // Rebuild a chord line keeping each chord at its original column where possible
+  function doChordLine(line) {
+    let plain = "", html = "";
+    const re = /\S+/g; let m;
+    while ((m = re.exec(line))) {
+      const col = m.index;
+      if (plain.length < col) {
+        const pad = " ".repeat(col - plain.length);
+        plain += pad; html += pad;
+      } else if (plain.length && !plain.endsWith(" ")) {
+        plain += " "; html += " ";
+      }
+      const [pre, core, post] = splitTok(m[0]);
+      const t = core ? transposeChord(core) : null;
+      if (t) {
+        found.set(core, t);
+        plain += pre + t + post;
+        html += esc(pre) + '<span class="c">' + esc(t) + "</span>" + esc(post);
+      } else {
+        plain += m[0]; html += esc(m[0]);
+      }
+    }
+    return [plain, html];
+  }
+
+  function doLyricLine(line) {
+    let plain = "", html = "", last = 0;
+    const re = /\[([^\]\s]+)\]/g; let m;
+    while ((m = re.exec(line))) {
+      const t = transposeChord(m[1]);
+      const before = line.slice(last, m.index);
+      plain += before; html += esc(before);
+      if (t) {
+        found.set(m[1], t);
+        plain += "[" + t + "]"; html += '[<span class="c">' + esc(t) + "</span>]";
+      } else {
+        plain += m[0]; html += esc(m[0]);
+      }
+      last = re.lastIndex;
+    }
+    const rest = line.slice(last);
+    return [plain + rest, html + esc(rest)];
+  }
+
+  let lastPlain = "";
+  function render() {
+    found.clear();
+    const lines = input.value.replace(/\r\n?/g, "\n").split("\n");
+    const P = [], H = [];
+    for (const line of lines) {
+      const [p, h] = isChordLine(line) ? doChordLine(line) : doLyricLine(line);
+      P.push(p); H.push(h);
+    }
+    lastPlain = P.join("\n");
+    output.innerHTML = input.value.trim() ? H.join("\n") : '<span style="color:var(--muted)">Your transposed sheet will appear here.</span>';
+
+    const s = semis();
+    const f = KEYS[+fromSel.value].n, t = KEYS[+toSel.value].n;
+    $("shift").innerHTML = s === 0
+      ? "Same key, nothing to change."
+      : `<b>${f} → ${t}</b>: up ${s} semitone${s>1?"s":""} (or down ${12-s}). Capo tip: if you want to keep your ${f} shapes, put a capo on fret ${s}.`;
+
+    const map = $("map"); map.innerHTML = "";
+    if (!found.size) { map.innerHTML = '<span class="note" style="margin:0">No chords found yet.</span>'; }
+    for (const [a, b] of found) {
+      const c = document.createElement("span");
+      c.className = "chip"; c.innerHTML = esc(a) + " <span>→</span> " + esc(b);
+      map.appendChild(c);
+    }
+    document.querySelectorAll("#spell button").forEach(b => b.classList.toggle("on", b.dataset.v === spell));
+    try {
+      localStorage.setItem("transposer-prefs", JSON.stringify({from: fromSel.value, to: toSel.value, spell}));
+      localStorage.setItem("transposer-draft", input.value);
+    } catch (e) {}
+  }
+
+  input.addEventListener("input", render);
+  fromSel.addEventListener("change", render);
+  toSel.addEventListener("change", render);
+  $("up").onclick = () => { toSel.value = (+toSel.value + 1) % 12; render(); };
+  $("down").onclick = () => { toSel.value = (+toSel.value + 11) % 12; render(); };
+  document.querySelectorAll("#spell button").forEach(b => b.onclick = () => { spell = b.dataset.v; render(); });
+  $("clear").onclick = () => { input.value = ""; render(); input.focus(); };
+
+  function flash(msg) { const t = $("toast"); t.textContent = msg; setTimeout(() => t.textContent = "", 2000); }
+  $("copy").onclick = async () => {
+    if (!lastPlain.trim()) return flash("Nothing to copy yet");
+    try { await navigator.clipboard.writeText(lastPlain); flash("Copied"); }
+    catch (e) {
+      const r = document.createRange(); r.selectNodeContents(output);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      flash("Selected, tap Copy in the menu");
+    }
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
