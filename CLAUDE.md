@@ -7,7 +7,7 @@ Used by Bob's band at rehearsal, so the live site must always work.
 
 - Never commit or push to `main`. `main` is protected; every change goes through a pull request.
 - Work on a branch named for the change (e.g. `fix-tab-alignment`, `add-text-size`).
-- Before opening the pull request, test the change (see Regression checks).
+- Before opening the pull request, run the regression checks and add a new check for any bug being fixed.
 - Publish a preview of the changed page (e.g. a claude.ai artifact) so Bob can try it with a real chart before merging.
 - The pull request description says, in plain words: what changed, why, how it was tested, and the preview link.
 - Bob merges. Merging is the approval. Never merge on his behalf.
@@ -31,6 +31,9 @@ Used by Bob's band at rehearsal, so the live site must always work.
 - Spelling: notes in the target key use that key's accidentals; borrowed chords keep the original's sharp/flat direction (`Fm/Ab` in C → `Cm/Eb` in G).
 
 ## Regression checks (C → G unless noted)
+
+Automated in `tests/regression.mjs`, run by GitHub Actions (`.github/workflows/checks.yml`) on every pull request. Run locally with `npm install --no-save jsdom@26 && node tests/regression.mjs`. A pull request is not ready until the check is green. When fixing a bug, add a check that would have caught it.
+
 
 - `C/E` → `G/B`, `D/F#` → `A/C#`, `Am7/G` → `Em7/D`, `Fm/Ab` → `Cm/Eb`, `Bb` → `F`, `Cmaj7/E` → `Gmaj7/B`
 - C → F: `D/F#` → `G/B`, `Ab` → `Db`, `E7` → `A7`
