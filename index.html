@@ -33,6 +33,7 @@
   .arrow { font-size: 1.3rem; padding-bottom: 8px; color: var(--muted); }
   .shift { font-size: .9rem; color: var(--muted); margin-top: 10px; }
   .shift b { color: var(--ink); }
+  textarea, pre { tab-size: 8; -moz-tab-size: 8; }
   textarea { width:100%; min-height: 240px; resize: vertical; border:1px solid var(--line); border-radius:10px;
     padding: 12px; background: var(--bg); color: var(--ink);
     font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; white-space: pre; overflow-x:auto; }
@@ -286,7 +287,17 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
   let lastPlain = "";
   function render() {
     found.clear();
-    const lines = input.value.replace(/\r\n?/g, "\n").split("\n");
+    // Expand tabs to spaces (8-column stops, as the browser shows them) so chord
+    // lines and lyric lines keep the same alignment after transposing.
+    const expand = l => {
+      let out = "";
+      for (const ch of l) {
+        if (ch === "\t") out += " ".repeat(8 - (out.length % 8));
+        else out += ch === " " ? " " : ch;
+      }
+      return out;
+    };
+    const lines = input.value.replace(/\r\n?/g, "\n").split("\n").map(expand);
     const P = [], H = [];
     for (const line of lines) {
       const [p, h] = isChordLine(line) ? doChordLine(line) : doLyricLine(line);
