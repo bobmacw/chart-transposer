@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Chart Transposer v1.1.0 -->
+<!-- Chart Transposer v1.2.0 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -84,6 +84,14 @@
           <button data-v="flat">♭</button>
         </div>
       </div>
+      <div>
+        <label>Chart from</label>
+        <div class="seg" id="layout">
+          <button data-v="auto" class="on">Auto</button>
+          <button data-v="plain">Plain text</button>
+          <button data-v="word">Word</button>
+        </div>
+      </div>
     </div>
     <div class="shift" id="shift"></div>
   </div>
@@ -145,6 +153,7 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
   const $ = id => document.getElementById(id);
   const fromSel = $("from"), toSel = $("to"), input = $("input"), output = $("output");
   let spell = "auto";
+  let layout = "auto";
 
   KEYS.forEach((k, i) => {
     const label = k.n + " major / " + k.rel;
@@ -158,6 +167,7 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
   fromSel.value = saved && saved.from != null ? saved.from : 0;
   toSel.value   = saved && saved.to   != null ? saved.to   : 7;
   if (saved && saved.spell) spell = saved.spell;
+  if (saved && saved.layout) layout = saved.layout;
   try { const d = localStorage.getItem("transposer-draft"); if (d) input.value = d; } catch (e) {}
 
   const QUAL = "(?:maj|Maj|min|mi|m|M|dim|aug|sus|add|no|omit|alt|°|ø|o|\\+|-|Δ|\\^|\\d|#|b|♯|♭|\\(|\\)|,)*";
@@ -196,7 +206,9 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
   }
 
   // srcAcc: the accidental the original note used ("", "#", "b")
-  function name(pc, srcAcc) {
+  // srcLetter: the original note's letter; tells a lowered note (spell flat) from a
+  // raised one (spell sharp) when the original was a natural the key normally alters.
+  function name(pc, srcAcc, srcLetter) {
     pc = (pc + 12) % 12;
     if (spell === "sharp") return SHARP[pc];
     if (spell === "flat") return FLAT[pc];
@@ -206,6 +218,12 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
     // Borrowed / chromatic note: keep the original's direction (Ab stays flat, F# stays sharp)
     if (srcAcc === "b" || srcAcc === "♭") return FLAT[pc];
     if (srcAcc === "#" || srcAcc === "♯") return SHARP[pc];
+    if (srcLetter) {
+      // Original was a natural note the key normally alters: C in A major (where C is
+      // C#) is a lowered note, so spell it flat; F in G major (F#) likewise.
+      const keyName = Object.values(scaleNames(KEYS[+fromSel.value])).find(n => n[0] === srcLetter);
+      if (keyName && keyName.length > 1) return keyName[1] === "#" ? FLAT[pc] : SHARP[pc];
+    }
     return useFlats() ? FLAT[pc] : SHARP[pc];
   }
 
@@ -213,8 +231,8 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
     const m = tok.match(CHORD_RE);
     if (!m) return null;
     const s = semis();
-    let out = name(pcOf(m[1], m[2]) + s, m[2]) + m[3];
-    if (m[4]) out += "/" + name(pcOf(m[4], m[5]) + s, m[5]);
+    let out = name(pcOf(m[1], m[2]) + s, m[2], m[1]) + m[3];
+    if (m[4]) out += "/" + name(pcOf(m[4], m[5]) + s, m[5], m[4]);
     return out;
   }
 
@@ -285,20 +303,132 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
     return [plain + rest, html + esc(rest)];
   }
 
+
+  // ---- Word layout ---------------------------------------------------------
+  // Character widths (1/1000 em) from metric-compatible fonts: Carlito (Calibri),
+  // Arimo (Arial), Tinos (Times New Roman), Caladea (Cambria).
+  const WORD_CHARS = "0123456789 !\"#$%&'()*+,-./:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~’‘“”…–—";
+  const WORD_FONTS = {"Calibri":"507,507,507,507,507,507,507,507,507,507,226,326,401,498,507,715,682,221,303,303,498,498,250,306,252,386,268,268,498,498,498,463,894,579,544,533,615,488,459,631,623,252,319,520,420,855,646,662,517,673,543,459,487,642,567,890,519,487,468,307,386,307,498,498,291,479,525,423,525,498,305,471,525,229,239,455,229,799,525,527,525,525,349,391,335,525,452,715,433,453,395,314,460,314,498,250,250,418,418,690,498,905","Arial":"556,556,556,556,556,556,556,556,556,556,278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,222,222,333,333,1000,556,1000","Times":"500,500,500,500,500,500,500,500,500,500,250,333,408,500,500,833,778,180,333,333,500,564,250,333,250,278,278,278,564,564,564,444,921,722,667,667,722,611,556,722,722,333,389,722,611,889,722,722,556,722,667,556,611,722,722,944,722,722,611,333,278,333,469,500,333,444,500,444,500,444,333,500,500,278,278,500,278,778,500,500,500,500,333,389,278,500,500,722,500,500,444,480,200,480,541,333,333,444,444,1000,500,1000","Cambria":"517,362,472,461,492,475,470,470,485,478,220,286,393,619,506,890,687,237,382,382,427,554,205,329,206,490,264,264,554,554,554,422,885,599,579,519,625,540,509,539,696,343,304,630,501,888,693,599,533,599,613,453,557,687,598,889,571,557,507,350,490,350,554,371,151,470,520,421,520,441,313,459,554,277,255,525,271,813,558,480,520,501,396,392,325,546,470,720,483,482,428,387,316,387,712,221,221,375,375,752,500,1000"};
+  const WORD_W = {};
+  for (const f in WORD_FONTS) {
+    const v = WORD_FONTS[f].split(",").map(Number), m = {};
+    [...WORD_CHARS].forEach((c, i) => m[c] = v[i]);
+    WORD_W[f] = m;
+  }
+  // Profiles to try, most common Word setups first (ties go to the earlier one).
+  const WORD_PROFILES = [["Calibri", 11], ["Calibri", 12], ["Arial", 11], ["Arial", 12], ["Times", 12],
+    ["Cambria", 11], ["Cambria", 12], ["Times", 11], ["Calibri", 10], ["Arial", 10], ["Calibri", 14], ["Arial", 14],
+    ["Times", 14], ["Cambria", 14]];
+  const TAB_PT = 36; // Word's default tab stops: every half inch
+
+  // x position (pt) where each character starts, as Word would lay it out
+  function wordXs(line, w, pt) {
+    const xs = []; let x = 0;
+    for (const ch of line) {
+      xs.push(x);
+      if (ch === "\t") x = (Math.floor(x / TAB_PT + 1e-9) + 1) * TAB_PT;
+      else x += ((w[ch] ?? w.n) / 1000) * pt;
+    }
+    xs.push(x);
+    return xs;
+  }
+  const isBlank = ch => ch === " " || ch === "\t";
+  const wordStarts = l => [...l].map((c, j) => !isBlank(c) && (j === 0 || isBlank(l[j - 1])) ? j : -1).filter(j => j >= 0);
+  const pairs = lines => lines.map((c, i) => [c, lines[i + 1]])
+    .filter(([c, l]) => isChordLine(c) && l && l.trim() && !isChordLine(l));
+
+  // How well a layout explains the chart: share of chords that land on a word
+  // start (within half a character), then average distance in characters.
+  function fit(lines, place) {
+    let hits = 0, n = 0, d = 0;
+    for (const [c, l] of pairs(lines)) {
+      const { cx, lx, unit } = place(c, l), st = wordStarts(l).map(j => lx[j]);
+      for (const m of c.matchAll(/\S+/g)) {
+        const x = cx[m.index]; if (x > lx[l.length] || !st.length) continue;
+        const dist = Math.min(...st.map(v => Math.abs(v - x))) / unit;
+        n++; d += Math.min(dist, 3); if (dist < 0.5) hits++;
+      }
+    }
+    return n ? { rate: hits / n, mean: d / n } : { rate: 0, mean: Infinity };
+  }
+  const better = (a, b) => a.rate > b.rate + 1e-9 || (Math.abs(a.rate - b.rate) < 1e-9 && a.mean < b.mean - 1e-9);
+  function fitPlain(lines) {
+    return fit(lines, (c, l) => {
+      const idx = s => { const e = []; let col = 0; for (const ch of s) { e.push(col); col = ch === "\t" ? col + 8 - (col % 8) : col + 1; } e.push(col); return e; };
+      return { cx: idx(c), lx: idx(l), unit: 1 };
+    });
+  }
+  function bestWordProfile(lines) {
+    let best = null;
+    for (const [font, pt] of WORD_PROFILES) {
+      const w = WORD_W[font];
+      const r = fit(lines, (c, l) => ({ cx: wordXs(c, w, pt), lx: wordXs(l, w, pt), unit: (w.n / 1000) * pt }));
+      if (!best || better(r, best)) best = { font, pt, ...r };
+    }
+    return best;
+  }
+
+  // Rebuild a Word chart with plain spaces so it lines up in a fixed-width font.
+  function fromWord(raw, profile) {
+    profile = profile || bestWordProfile(raw);
+    const w = WORD_W[profile.font], pt = profile.pt;
+    const sp = (w[" "] / 1000) * pt, unit = (w.n / 1000) * pt;
+    const mono = l => { // tabs -> spaces of about the same width; column of each char
+      const lx = wordXs(l, w, pt); let s = ""; const cols = [];
+      [...l].forEach((ch, j) => {
+        cols.push(s.length);
+        s += ch === "\t" ? " ".repeat(Math.max(1, Math.round((lx[j + 1] - lx[j]) / sp))) : ch;
+      });
+      cols.push(s.length);
+      return { s, cols, lx };
+    };
+    const out = raw.slice();
+    for (let i = 0; i < raw.length; i++) {
+      const c = raw[i];
+      if (!isChordLine(c)) { if (c.includes("\t") && !(i > 0 && isChordLine(raw[i - 1]))) out[i] = mono(c).s; continue; }
+      const l = raw[i + 1], hasLyric = l && l.trim() && !isChordLine(l);
+      const cx = wordXs(c, w, pt), L = hasLyric ? mono(l) : null;
+      if (L) out[i + 1] = L.s;
+      let s = "";
+      for (const m of c.matchAll(/\S+/g)) {
+        const x = cx[m.index]; let col;
+        if (L && x <= L.lx[l.length]) {
+          let j = 0, bd = Infinity;
+          [...l].forEach((ch, k) => { if (!isBlank(ch) && Math.abs(L.lx[k] - x) < bd) { bd = Math.abs(L.lx[k] - x); j = k; } });
+          for (let k = j; k >= Math.max(0, j - 2); k--) if (!isBlank(l[k]) && (k === 0 || isBlank(l[k - 1]))) { j = k; break; }
+          col = L.cols[j];
+        } else if (L) col = L.s.length + Math.round((x - L.lx[l.length]) / unit);
+        else col = Math.round(x / unit);
+        if (s.length < col) s += " ".repeat(col - s.length);
+        else if (s.length) s += " ";
+        s += m[0];
+      }
+      out[i] = s;
+    }
+    return { lines: out, profile };
+  }
+
+  // Expand tabs to spaces (8-column stops, as the browser shows them) so chord
+  // lines and lyric lines keep the same alignment after transposing.
+  const expand = l => {
+    let out = "";
+    for (const ch of l) out += ch === "\t" ? " ".repeat(8 - (out.length % 8)) : ch;
+    return out;
+  };
+
   let lastPlain = "";
   function render() {
     found.clear();
-    // Expand tabs to spaces (8-column stops, as the browser shows them) so chord
-    // lines and lyric lines keep the same alignment after transposing.
-    const expand = l => {
-      let out = "";
-      for (const ch of l) {
-        if (ch === "\t") out += " ".repeat(8 - (out.length % 8));
-        else out += ch === " " ? " " : ch;
-      }
-      return out;
-    };
-    const lines = input.value.replace(/\r\n?/g, "\n").split("\n").map(expand);
+    const raw = input.value.replace(/\r\n?/g, "\n").split("\n").map(l => l.replace(/\u00a0/g, " "));
+    // Charts typed in Word (tabs + a proportional font) only line up in Word,
+    // so rebuild them the way Word would draw them.
+    let wordProfile = null, lines;
+    if (layout === "word" || (layout === "auto" && raw.some(l => l.includes("\t") && isChordLine(l)))) {
+      const p = bestWordProfile(raw);
+      if (layout === "word" || better(p, fitPlain(raw))) wordProfile = p;
+    }
+    if (wordProfile) lines = fromWord(raw, wordProfile).lines;
+    else lines = raw.map(expand);
     const P = [], H = [];
     for (const line of lines) {
       const [p, h] = isChordLine(line) ? doChordLine(line) : doLyricLine(line);
@@ -312,6 +442,7 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
     $("shift").innerHTML = s === 0
       ? "Same key, nothing to change."
       : `<b>${f} → ${t}</b>: up ${s} semitone${s>1?"s":""} (or down ${12-s}). Capo tip: if you want to keep your ${f} shapes, put a capo on fret ${s}.`;
+    if (wordProfile) $("shift").innerHTML += `<br>Lined up the way Word shows it (closest match: ${wordProfile.font} ${wordProfile.pt} pt).`;
 
     const map = $("map"); map.innerHTML = "";
     if (!found.size) { map.innerHTML = '<span class="note" style="margin:0">No chords found yet.</span>'; }
@@ -321,8 +452,9 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
       map.appendChild(c);
     }
     document.querySelectorAll("#spell button").forEach(b => b.classList.toggle("on", b.dataset.v === spell));
+    document.querySelectorAll("#layout button").forEach(b => b.classList.toggle("on", b.dataset.v === layout));
     try {
-      localStorage.setItem("transposer-prefs", JSON.stringify({from: fromSel.value, to: toSel.value, spell}));
+      localStorage.setItem("transposer-prefs", JSON.stringify({from: fromSel.value, to: toSel.value, spell, layout}));
       localStorage.setItem("transposer-draft", input.value);
     } catch (e) {}
   }
@@ -333,6 +465,7 @@ ChordPro style works too: [C]Words [Am]here"></textarea>
   $("up").onclick = () => { toSel.value = (+toSel.value + 1) % 12; render(); };
   $("down").onclick = () => { toSel.value = (+toSel.value + 11) % 12; render(); };
   document.querySelectorAll("#spell button").forEach(b => b.onclick = () => { spell = b.dataset.v; render(); });
+  document.querySelectorAll("#layout button").forEach(b => b.onclick = () => { layout = b.dataset.v; render(); });
   $("clear").onclick = () => { input.value = ""; render(); input.focus(); };
 
   function flash(msg) { const t = $("toast"); t.textContent = msg; setTimeout(() => t.textContent = "", 2000); }

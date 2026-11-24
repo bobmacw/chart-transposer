@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-const KEY = { C: 0, F: 5, G: 7 }; // option index in the key menus
+const KEY = { C: 0, F: 5, G: 7, A: 9 }; // option index in the key menus
 
 let failures = 0;
 const pass = (name) => console.log(`  ok   ${name}`);
@@ -38,6 +38,9 @@ expect("markers are kept", "| C  Am | F  G | x2", "| G  Em | C  D | x2");
 console.log("Chord transposing (C to F)");
 expect("C to F spelling", "D/F#  Ab  E7", "G/B   Db  A7", "C", "F");
 
+console.log("Spelling of borrowed chords");
+expect("natural notes the key sharpens spell flat (A to G)", "A  G  D  C  F", "G  F  C  Bb Eb", "A", "G");
+
 console.log("Alignment");
 expect(
   "tabs keep chords over the same words",
@@ -51,6 +54,42 @@ expect(
   JSON.stringify(cols(lines[0])) === JSON.stringify(cols(lines[1]))
     ? pass("chords start at the same columns as the words")
     : fail("chords start at the same columns as the words", JSON.stringify(lines));
+}
+
+console.log("Charts typed in Word (tabs + proportional font)");
+{
+  // Recreate how someone lines chords up in Word (Calibri 11 pt, tab stops every
+  // half inch): tabs, then spaces, until the chord sits over the target word.
+  const chars = JSON.parse(html.match(/const WORD_CHARS = (".*?");/)[1]);
+  const vals = JSON.parse(html.match(/const WORD_FONTS = (\{.*?\});/)[1]).Calibri.split(",").map(Number);
+  const w = Object.fromEntries([...chars].map((c, i) => [c, vals[i]]));
+  const PT = 11, TAB = 36, adv = (ch) => ((w[ch] ?? w.n) / 1000) * PT;
+  const xOf = (s) => [...s].reduce((x, ch) => (ch === "\t" ? (Math.floor(x / TAB + 1e-9) + 1) * TAB : x + adv(ch)), 0);
+  function wordLine(lyric, targets) {
+    let line = "";
+    for (const [chord, word] of targets) {
+      const target = xOf(lyric.slice(0, lyric.indexOf(word)));
+      while ((Math.floor(xOf(line) / TAB + 1e-9) + 1) * TAB <= target + 0.01) line += "\t";
+      while (xOf(line) + adv(" ") / 2 < target) line += " ";
+      line += chord;
+    }
+    return line;
+  }
+  const song = [
+    ["Morning comes along the river road tonight", [["C", "Morning"], ["F", "river"], ["G", "tonight"]]],
+    ["Every lantern burning slowly down the hill", [["C", "Every"], ["Am", "burning"], ["F", "hill"]]],
+    ["We will carry all the music we can hold", [["F", "carry"], ["G", "music"], ["C", "hold"]]],
+    ["Singing softly, leaving nothing left to say", [["Am", "softly,"], ["Dm7", "nothing"], ["G7", "say"]]],
+  ];
+  const chart = song.map(([lyric, t]) => wordLine(lyric, t) + "\n" + lyric).join("\n");
+  const out = transpose(chart).text.split("\n");
+  const problems = [];
+  song.forEach(([lyric, t], i) => {
+    const chordLine = out[2 * i], lyricOut = out[2 * i + 1];
+    const cols = [...chordLine.matchAll(/\S+/g)].map((m) => m.index);
+    t.forEach(([, word], k) => { if (cols[k] !== lyricOut.indexOf(word)) problems.push(`"${word}": chord at ${cols[k]}, word at ${lyricOut.indexOf(word)}`); });
+  });
+  !problems.length ? pass("each chord lands on the same word as in Word") : fail("each chord lands on the same word as in Word", problems.join("; "));
 }
 
 console.log("Safety");
