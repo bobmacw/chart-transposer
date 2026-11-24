@@ -8,8 +8,8 @@ Used by Bob's band at rehearsal, so the live site must always work.
 - Never commit or push to `main`. `main` is protected; every change goes through a pull request.
 - Work on a branch named for the change (e.g. `fix-tab-alignment`, `add-text-size`).
 - Before opening the pull request, run the regression checks and add a new check for any bug being fixed.
-- Publish a preview of the changed page (e.g. a claude.ai artifact) so Bob can try it with a real chart before merging.
-- The pull request description says, in plain words: what changed, why, how it was tested, and the preview link.
+- Preview the changed page so Bob can try it with a real chart before merging: in the Codespace, run `python3 -m http.server 8080` and open the forwarded port.
+- The pull request description says, in plain words: what changed, why, how it was tested, and how to preview it.
 - Bob merges. Merging is the approval. Never merge on his behalf.
 
 ## Code conventions
