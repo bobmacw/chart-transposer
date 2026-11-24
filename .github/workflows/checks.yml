@@ -1,0 +1,22 @@
+name: Regression checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install test browser (jsdom)
+        run: npm install --no-save --no-package-lock jsdom@26
+      - name: Run regression checks
+        run: node tests/regression.mjs
